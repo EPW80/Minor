@@ -1,4 +1,3 @@
-
 const asyncHandler = require('express-async-handler');
 const Product = require('../models/productModel');
 
@@ -6,8 +5,31 @@ const Product = require('../models/productModel');
 // @route   GET /api/products
 // @access  Public
 const getProducts = asyncHandler(async (req, res) => {
-  const products = await Product.find({});
-  res.json(products);
+  const pageSize = 10; // Products per page
+  const page = Number(req.query.pageNumber) || 1;
+  
+  // Search functionality
+  const keyword = req.query.keyword 
+    ? {
+        name: {
+          $regex: req.query.keyword,
+          $options: 'i', // Case insensitive
+        },
+      } 
+    : {};
+
+  const count = await Product.countDocuments({ ...keyword });
+  const products = await Product.find({ ...keyword })
+    .limit(pageSize)
+    .skip(pageSize * (page - 1))
+    .sort({ createdAt: -1 }); // Most recent first
+    
+  res.json({ 
+    products, 
+    page, 
+    pages: Math.ceil(count / pageSize),
+    totalProducts: count
+  });
 });
 
 // @desc    Get single product
@@ -78,12 +100,21 @@ const deleteProduct = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.params.id);
 
   if (product) {
-    await Product.deleteOne({ _id: product._id });
+    await Product.deleteOne({ _id: req.params.id });
     res.json({ message: "Product removed" });
   } else {
     res.status(404);
     throw new Error("Product not found");
   }
+});
+
+// @desc    Get products by category
+// @route   GET /api/products/category/:category
+// @access  Public
+const getProductsByCategory = asyncHandler(async (req, res) => {
+  const category = req.params.category;
+  const products = await Product.find({ category });
+  res.json(products);
 });
 
 module.exports = {
@@ -92,4 +123,5 @@ module.exports = {
   createProduct,
   updateProduct,
   deleteProduct,
+  getProductsByCategory,
 };
